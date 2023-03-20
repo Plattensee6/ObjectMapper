@@ -1,11 +1,11 @@
 package org.objectmapper.exception;
 
-public class ObjectInstantiationException extends MappingException{
+public class TargetObjectInstantiationException extends MappingException{
 
-    public ObjectInstantiationException(String message) {
+    public TargetObjectInstantiationException(String message) {
         super(message);
     }
-    public ObjectInstantiationException(String message, Throwable cause) {
+    public TargetObjectInstantiationException(String message, Throwable cause) {
         super(message, cause);
     }
 }
