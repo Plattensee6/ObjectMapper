@@ -3,6 +3,7 @@ package org.objectmapper.configuration;
 import org.objectmapper.annotation.ExcludeFromMapping;
 
 import java.lang.reflect.Field;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -13,30 +14,44 @@ public class DefaultMappingConfiguration implements MappingConfiguration {
     }
 
     private DefaultMappingConfiguration(Set<Integer> excludedModifiers) {
+        if (Objects.isNull(excludedModifiers)) {
+            throw new IllegalArgumentException("The set of excluded modifier cannot be null.");
+        }
         this.excludedModifiers = excludedModifiers;
     }
 
     @Override
-    public Predicate<Field> getExcludedFieldPredicate() {
-        Predicate<Field> excludeFieldPredicate =  field -> !field.getName().equals("serialVersionUID")
+    public Predicate<Field> getExcludedFieldsPredicate() {
+        Predicate<Field> excludeFieldsPredicate = excludeFieldNamePredicate()
+                .and(annotationAbsentPredicate());
+        if (excludedModifiers != null && !excludedModifiers.isEmpty()) {
+            excludeFieldsPredicate = excludeFieldsPredicate.and(excludeFieldByModifierPredicate());
+        }
+        return excludeFieldsPredicate;
+    }
+
+    private Predicate<Field> excludeFieldNamePredicate() {
+        return field -> !field.getName().equals("serialVersionUID")
                 && !field.isSynthetic()
                 && !field.getName().startsWith("$");
+    }
 
-        Predicate<Field> excludeAnnotationAbsent = field -> !field.isAnnotationPresent(ExcludeFromMapping.class);
-        excludeFieldPredicate = excludeFieldPredicate.and(excludeAnnotationAbsent);
-        if (excludedModifiers != null && !excludedModifiers.isEmpty()){
-            Predicate<Field> excludeFieldByModifier = (field) -> !excludedModifiers.contains(field.getModifiers());
-            excludeFieldPredicate = excludeFieldPredicate.and(excludeFieldByModifier);
-        }
-        return excludeFieldPredicate;
+    private Predicate<Field> annotationAbsentPredicate() {
+        return field -> !field.isAnnotationPresent(ExcludeFromMapping.class);
+    }
+
+    private Predicate<Field> excludeFieldByModifierPredicate() {
+        return (field) -> !excludedModifiers.contains(field.getModifiers());
     }
 
     public static class ConfigBuilder {
         private Set<Integer> excludedModifiers;
+
         public ConfigBuilder withExcludedModifiers(Integer... modifiers) {
             this.excludedModifiers = Set.of(modifiers);
             return this;
         }
+
         public DefaultMappingConfiguration build() {
             return new DefaultMappingConfiguration(excludedModifiers);
         }

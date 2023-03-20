@@ -4,6 +4,6 @@ import java.lang.reflect.Field;
 import java.util.function.Predicate;
 
 public interface MappingConfiguration {
-    Predicate<Field> getExcludedFieldPredicate();
+    Predicate<Field> getExcludedFieldsPredicate();
 
 }
