@@ -1,184 +1,91 @@
 package org.objectmapper.test.mapper;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.objectmapper.ObjectMapper;
-import org.objectmapper.ObjectMapperImpl;
-import org.objectmapper.annotation.ExcludeFromMapping;
-import org.objectmapper.configuration.MappingConfiguration;
-import org.objectmapper.exception.MappingException;
+import org.objectmapper.exception.TargetObjectInstantiationException;
+import org.objectmapper.mapper.ObjectMapper;
+import org.objectmapper.mapper.ObjectMapperImpl;
+import org.objectmapper.strategy.AnnotationExclusionStrategy;
+import org.objectmapper.strategy.FieldExclusionStrategy;
+import org.objectmapper.strategy.FieldValueInsertionStrategy;
+import org.objectmapper.strategy.ObjectFactory;
+import org.objectmapper.strategy.SetterInsertionStrategy;
+import org.objectmapper.strategy.TargetObjectFactory;
+import org.objectmapper.test.model.SourceTestClass;
+import org.objectmapper.test.model.TargetTestClass;
 
-import java.lang.reflect.Modifier;
+import java.lang.reflect.Field;
+import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
-public class ObjectMapperTest {
-    private ObjectMapper testedMapper;
-    private MappingConfiguration mockMappingConfiguration;
+class ObjectMapperTest {
+
+    private ObjectFactory objectFactory;
+    private FieldValueInsertionStrategy fieldValueInsertionStrategy;
+    private FieldExclusionStrategy fieldExclusionStrategy;
+    private ObjectMapper objectMapper;
 
     @BeforeEach
-    public void setUp() {
-        // Default MappingConfiguration will be used.
-        mockMappingConfiguration = mock(MappingConfiguration.class);
-        testedMapper = new ObjectMapperImpl(mockMappingConfiguration);
+    void setUp() {
+        objectFactory = mock(TargetObjectFactory.class);
+        fieldValueInsertionStrategy = mock(SetterInsertionStrategy.class);
+        fieldExclusionStrategy = mock(AnnotationExclusionStrategy.class);
+        objectMapper = new ObjectMapperImpl.Builder()
+                .withInsertionStrategy(fieldValueInsertionStrategy)
+                .withObjectFactory(objectFactory)
+                .withExclusionStrategy(fieldExclusionStrategy)
+                .build();
     }
 
     @Test
-    @DisplayName("Test ObjectMapperImpl with valid parameters")
-    public void testMapObject() {
-        TestSource source = new TestSource(1, "John", "Smith");
-        ObjectMapper objectMapper = new ObjectMapperImpl();
-
-        when(mockMappingConfiguration.getExcludedFieldsPredicate()).thenReturn(field -> true);
-
-        TestTarget target = objectMapper.mapObject(source, TestTarget.class);
-        assertNotNull(target);
-        assertEquals(source.getPrivateId(), target.getPrivateId());
-        assertEquals(source.getPrivateValue(), target.getPrivateValue());
-        assertEquals(source.getProtectedValue(), target.getProtectedValue());
+    void mapObject_givenNullSource_shouldThrowIllegalArgumentException() {
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> objectMapper.mapObject(null, TargetTestClass.class));
     }
 
     @Test
-    @DisplayName("Test ObjectMapperImpl with null source parameter")
-    public void testMapObjectWithNullSource() {
-        String expectedMsg = "Invalid parameters! Source object and target type cannot be null.";
-
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            testedMapper.mapObject(null, TestTarget.class);
-        });
-        assertEquals(expectedMsg, exception.getMessage());
+    void mapObject_givenNullTargetType_shouldThrowIllegalArgumentException() {
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> objectMapper.mapObject("Test", null));
     }
 
     @Test
-    @DisplayName("Test ObjectMapperImpl with null target type parameter")
-    public void testMapObjectWithNullTargetType() {
-        String expectedMsg = "Invalid parameters! Source object and target type cannot be null.";
-        TestSource source = new TestSource(1, "John", "Smith");
+    void mapObject_givenValidSourceAndTargetType_shouldCallCopySourceFieldsToTarget() {
+        // Arrange
+        SourceTestClass source = new SourceTestClass(1, "Test1", "");
+        Class<TargetTestClass> targetType = TargetTestClass.class;
+        when(objectFactory.create(targetType)).thenReturn(new TargetTestClass());
+        when(fieldExclusionStrategy.filter(any())).thenReturn(getSourceFields());
 
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            testedMapper.mapObject(source, null);
-        });
-        assertEquals(expectedMsg, exception.getMessage());
+        // Act
+        objectMapper.mapObject(source, TargetTestClass.class);
+
+        // Assert
+        verify(objectFactory, times(1)).create(targetType);
+        verify(fieldExclusionStrategy, times(1)).filter(any());
+        verify(fieldValueInsertionStrategy, times(3)).insertValue(any(Object.class), any(Object.class), any(Field.class));
     }
 
     @Test
-    @DisplayName("Test ObjectMapperImpl with invalid target type parameter")
-    public void testMapObjectWithInvalidTargetType() {
-        TestSource source = new TestSource(1, "John", "");
+    void mapObject_givenInvalidTargetType_shouldThrowTargetObjectInstantiationException() {
+        // Arrange
+        SourceTestClass source = new SourceTestClass(1, "Test1", "");
+        when(objectFactory.create(any())).thenThrow(TargetObjectInstantiationException.class);
 
-        when(mockMappingConfiguration.getExcludedFieldsPredicate())
-                .thenReturn(field -> true);
-
-        assertThrows(MappingException.class, () -> {
-            testedMapper.mapObject(source, Object.class);
-        });
+        assertThrows(TargetObjectInstantiationException.class, () -> objectMapper.mapObject(source, String.class));
     }
 
     @Test
-    @DisplayName("Test ObjectMapperImpl with excluded private modifier.")
-    public void testMapObjectWithAllPrivateFieldExcluded() {
-        TestSource source = new TestSource(1, "John", "ProtectedValueShouldBeMapped");
-
-        // filter out all private field
-        when(mockMappingConfiguration.getExcludedFieldsPredicate())
-                .thenReturn(field -> !Modifier.isPrivate(field.getModifiers()));
-
-        TestTarget target = testedMapper.mapObject(source, TestTarget.class);
-        assertNotEquals(source.getPrivateId(), target.getPrivateId());
-        assertNotEquals(source.getPrivateValue(), target.getPrivateValue());
-        assertEquals(source.getProtectedValue(), target.getProtectedValue());
-    }
-    @Test
-    @DisplayName("Test ObjectMapperImpl with ExcludeFromMapping annotation.")
-    public void testMapObjectWithExcludedAnnotation(){
-        TestSource source = new TestSource(1, "John", "Smith");
-
-        // Fields annotated with ExcludeFromMapping should be filtered out.
-        when(mockMappingConfiguration.getExcludedFieldsPredicate())
-                .thenReturn(field -> !field.isAnnotationPresent(ExcludeFromMapping.class));
-
-        TestTarget target = testedMapper.mapObject(source, TestTarget.class);
-        assertEquals(source.getPrivateId(), target.getPrivateId());
-        assertNull(target.getPrivateValue());
-        assertNotEquals(source.getPrivateValue(), target.getPrivateValue());
-    }
-    public static class TestSource {
-        private int privateId;
-        @ExcludeFromMapping
-        private String privateValue;
-        protected String protectedValue;
-
-        public TestSource() {
-        }
-
-        public TestSource(int id, String stringValue, String protectedValue) {
-            this.privateId = id;
-            this.privateValue = stringValue;
-            this.protectedValue = protectedValue;
-        }
-
-        public int getPrivateId() {
-            return privateId;
-        }
-
-        public String getPrivateValue() {
-            return privateValue;
-        }
-
-        public String getProtectedValue() {
-            return protectedValue;
-        }
-
-        @Override
-        public String toString() {
-            return "TestSource{" +
-                    "id=" + privateId +
-                    ", stringValue='" + privateValue + '\'' +
-                    ", protectedValue='" + protectedValue + '\'' +
-                    '}';
-        }
+    public void test() {
+        SourceTestClass source = new SourceTestClass(1, "Test1", "");
+        var target = objectMapper.mapObject(source, ObjectMapperImpl.class);
+        System.out.println(target);
     }
 
-    public static class TestTarget {
-        private int privateId;
-        private String privateValue;
-        protected String protectedValue;
-
-        public TestTarget() {
-        }
-
-        public TestTarget(int id, String stringValue, String protectedValue) {
-            this.privateId = id;
-            this.privateValue = stringValue;
-            this.protectedValue = protectedValue;
-        }
-
-        public int getPrivateId() {
-            return privateId;
-        }
-
-        public String getPrivateValue() {
-            return privateValue;
-        }
-
-        public String getProtectedValue() {
-            return protectedValue;
-        }
-
-        @Override
-        public String toString() {
-            return "TestTarget{" +
-                    "id=" + privateId +
-                    ", stringValue='" + privateValue + '\'' +
-                    ", protectedValue='" + protectedValue + '\'' +
-                    '}';
-        }
+    private Stream<Field> getSourceFields() {
+        return Stream.of(SourceTestClass.class.getDeclaredFields());
     }
 }
