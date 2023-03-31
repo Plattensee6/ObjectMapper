@@ -1,4 +1,4 @@
-package org.objectmapper.factory;
+package org.objectmapper.strategy;
 
 /**
  An interface for creating instances of a given class.

@@ -1,8 +1,10 @@
-package org.objectmapper.factory;
+package org.objectmapper.strategy;
 
 import org.objectmapper.exception.TargetObjectInstantiationException;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.util.Objects;
 
 /**
  A factory implementation that creates objects of the given class type by invoking its no-arg constructor using reflection.
@@ -18,8 +20,13 @@ public class TargetObjectFactory implements ObjectFactory {
      */
     @Override
     public <T> T create(Class<T> type) {
+        if (Objects.isNull(type)){
+            throw new IllegalArgumentException("Class type parameter in create method cannot be null.");
+        }
         try {
-            return type.getDeclaredConstructor().newInstance();
+            Constructor<T> constructor = type.getDeclaredConstructor();
+            constructor.setAccessible(true);
+            return constructor.newInstance();
         } catch (InvocationTargetException e) {
             String msg = String.format("Unable to invoke %s constructor.", type.getName());
             throw new TargetObjectInstantiationException(msg, e.getTargetException());
