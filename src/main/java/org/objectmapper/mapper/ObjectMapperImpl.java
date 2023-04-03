@@ -4,6 +4,7 @@ import org.objectmapper.annotation.ExcludeFromMapping;
 import org.objectmapper.exception.TargetFieldNotAccessibleException;
 import org.objectmapper.exception.TargetFieldNotFoundException;
 import org.objectmapper.strategy.ObjectFactory;
+import org.objectmapper.strategy.StrategyFactory;
 import org.objectmapper.strategy.TargetObjectFactory;
 import org.objectmapper.strategy.AnnotationExclusionStrategy;
 import org.objectmapper.strategy.FieldExclusionStrategy;
@@ -151,9 +152,11 @@ public class ObjectMapperImpl implements ObjectMapper {
     }
 
     public static class Builder {
-        private ObjectFactory objectFactory = new TargetObjectFactory();
-        private FieldValueInsertionStrategy fieldValueInsertionStrategy = new SetterInsertionStrategy();
-        private FieldExclusionStrategy fieldExclusionStrategy = new AnnotationExclusionStrategy();
+        private ObjectFactory objectFactory = StrategyFactory.getInstance().getDefaultObjectFactory();
+        private FieldValueInsertionStrategy fieldValueInsertionStrategy = StrategyFactory.getInstance()
+                .getDefaultFieldInsertionStrategy();
+        private FieldExclusionStrategy fieldExclusionStrategy = StrategyFactory.getInstance()
+                .getDefaultFieldExclusionStrategy();
 
         public Builder withObjectFactory(ObjectFactory objectFactory) {
             this.objectFactory = Objects.requireNonNull(objectFactory,
