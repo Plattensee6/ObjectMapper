@@ -6,13 +6,19 @@ The ObjectMapper is a utility class that maps fields from a source object to a t
 ## Usage
 
 To use the ObjectMapper, first create an instance of the class with the desired mapping configuration:
+```java
+// It will use the default strategy implementations.
+ObjectMapperImpl.Builder().build();
+```
+### OR
 
 ```java
+// You can provide your own implementations.
 ObjectMapperImpl.Builder()
-                .withInsertionStrategy(fieldValueInsertionStrategy)
-                .withObjectFactory(objectFactory)
-                .withExclusionStrategy(fieldExclusionStrategy)
-                .build();
+    .withInsertionStrategy(fieldValueInsertionStrategy)
+    .withObjectFactory(objectFactory)
+    .withExclusionStrategy(fieldExclusionStrategy)
+    .build();
 ```
 
 
